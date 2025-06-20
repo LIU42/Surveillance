@@ -133,6 +133,7 @@ datasets/
 | group-size           | 增强样本组大小，如采用 10-crops 增强，其值应当为 10，以此类推。                             |
 | learning-rate        | 模型训练学习率。                                                           |
 | weight-decay         | 模型训练权重衰减。                                                          |
+| log-interval         | 日志输出频率。                                |
 | alpha                | 全局注意力输出和局部注意力输出的融合权重。                                              |
 | attention-window     | 局部注意力窗口大小。                                                         |
 | smoothing-window     | 异常得分序列平滑窗口大小。                                                      |
