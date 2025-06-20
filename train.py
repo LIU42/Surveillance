@@ -1,6 +1,5 @@
 import torch
 import toml
-import tqdm
 import utils
 
 import torch.nn as nn
@@ -20,7 +19,7 @@ def set_random_seed(seed):
 
 
 def pad_sequences(batch):
-    batch_lengths = torch.stack([item[2] for item in batch])
+    batch_lengths = torch.tensor([item[2] for item in batch])
 
     batch_inputs = [item[0] for item in batch]
     batch_labels = [item[1] for item in batch]
@@ -70,6 +69,8 @@ valid_dataloader.collate_fn = pad_sequences
 train_dataloader_size = len(train_dataloader)
 valid_dataloader_size = len(valid_dataloader)
 
+num_epochs = configs['num-epochs']
+
 best_iou_score = 0.0
 last_iou_score = 0.0
 
@@ -78,7 +79,7 @@ device = torch.device(configs['device'])
 attention_window = configs['attention-window']
 smoothing_window = configs['smoothing-window']
 
-num_epochs = configs['num-epochs']
+log_interval = configs['log-interval']
 
 model = AnomalyDetectionModel(attention_window, alpha=configs['alpha'])
 model = model.to(device)
@@ -96,28 +97,28 @@ print(f'\n---------- training start at: {device} ----------\n')
 
 for epoch in range(num_epochs):
     model.train()
-    train_loss = 0.0
 
-    for inputs, labels, lengths in tqdm.tqdm(train_dataloader, ncols=80):
+    for batch, (inputs, labels, lengths) in enumerate(train_dataloader, start=1):
         inputs = inputs.to(device)
         labels = labels.to(device)
+        lengths = lengths.to(device)
 
         optimizer.zero_grad()
         outputs = model(inputs)
-        loss = criterion(outputs.sigmoid(), labels, lengths.to(device))
+        loss = criterion(outputs.sigmoid(), labels, lengths)
         loss.backward()
         optimizer.step()
 
-        train_loss += loss.item()
+        if batch % log_interval == 0:
+            print(f'{utils.current_time()} [train] [{epoch:03d}] [{batch:04d}/{train_dataloader_size:04d}] loss: {loss.item():.5f}')
 
     model.eval()
-    train_loss /= train_dataloader_size
 
     with torch.no_grad():
-        all_scores = torch.zeros(0).to(device)
-        all_labels = torch.zeros(0).to(device)
+        all_scores = []
+        all_labels = []
 
-        for inputs, labels, _ in tqdm.tqdm(valid_dataloader, ncols=80):
+        for index, (inputs, labels, _) in enumerate(valid_dataloader, start=1):
             inputs = inputs.to(device)
             labels = labels.to(device)
 
@@ -127,11 +128,14 @@ for epoch in range(num_epochs):
             scores = scores.mean(dim=0)
             labels = labels.mean(dim=0)
 
-            all_scores = torch.cat([all_scores, scores])
-            all_labels = torch.cat([all_labels, labels])
+            all_scores.append(scores)
+            all_labels.append(labels)
 
-        all_scores = all_scores.cpu()
-        all_labels = all_labels.cpu()
+            if index % log_interval == 0:
+                print(f'{utils.current_time()} [valid] [{epoch:03d}] [{index:04d}/{valid_dataloader_size:04d}]')
+
+        all_scores = torch.cat(all_scores).cpu()
+        all_labels = torch.cat(all_labels).cpu()
 
         iou_score = utils.iou_score((all_scores > 0.5).int(), all_labels).item()
 
@@ -142,7 +146,7 @@ for epoch in range(num_epochs):
         last_iou_score = iou_score
         torch.save(model.state_dict(), last_checkpoint_path)
 
-    print(f'\nepoch: {epoch + 1}/{num_epochs:<6} loss: {train_loss:<10.5f} IoU: {iou_score:.3f}\n')
+    print(f'{utils.current_time()} [valid] [{epoch:03d}] IoU: {iou_score:.4f}')
 
 print(f'best IoU: {best_iou_score:.3f}')
 print(f'last IoU: {last_iou_score:.3f}')

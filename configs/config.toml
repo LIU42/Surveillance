@@ -7,6 +7,7 @@ num-epochs = 30
 num-workers = 0
 weight-decay = 0.0001
 
+log-interval = 10
 alpha = 0.2
 attention-window = 9
 smoothing-window = 3

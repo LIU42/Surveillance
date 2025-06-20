@@ -113,7 +113,7 @@ datasets/
 | input | 视频样本输入 SlowFast 特征数据文件路径，相对于 annotations.json 所在路径。 |
 | label | 视频样本标签文件路径，相对于 annotations.json 所在路径。               |
 
-此外，annotations.json 文件中的样本数据必须保持一定的顺序以确保评估结果正确，本项目提供了默认的文件可供参考。
+此外，annotations.json 文件中的样本数据必须保持顺序以确保评估结果正确，本项目提供了默认的文件可供参考。
 
 数据集中 inputs 目录下为视频样本的特征数据， 其形状为 (视频片段数，特征维度) 。labels 目录下为视频样本的标签数据，在训练集中该文件为片段级标签数据，在验证集中为帧级标签数据。数据文件均使用 [NumPy](https://numpy.org/) 数组格式。
 

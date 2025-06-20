@@ -1,6 +1,5 @@
 import torch
 import toml
-import tqdm
 import utils
 import sklearn.metrics as metrics
 
@@ -35,22 +34,24 @@ device = torch.device(configs['device'])
 attention_window = configs['attention-window']
 smoothing_window = configs['smoothing-window']
 
+log_interval = configs['log-interval']
+
 model = AnomalyDetectionModel(attention_window, alpha=configs['alpha'])
 model = model.to(device)
 
 print(f'\n---------- evaluation start at: {device} ----------\n')
 
 with torch.no_grad():
-    scores0 = torch.zeros(0).to(device)
-    scores1 = torch.zeros(0).to(device)
+    scores0 = []
+    scores1 = []
 
-    labels0 = torch.zeros(0).to(device)
-    labels1 = torch.zeros(0).to(device)
+    labels0 = []
+    labels1 = []
 
     model.load_state_dict(torch.load(configs['load-checkpoint-path'], map_location=device, weights_only=True))
     model.eval()
 
-    for inputs, labels, _ in tqdm.tqdm(dataloader, ncols=80):
+    for index, (inputs, labels, _) in enumerate(dataloader, start=1):
         inputs = inputs.to(device)
         labels = labels.to(device)
 
@@ -61,17 +62,20 @@ with torch.no_grad():
         labels = labels.mean(dim=0)
 
         if labels.sum() == 0:
-            scores0 = torch.cat([scores0, scores])
-            labels0 = torch.cat([labels0, labels])
+            scores0.append(scores)
+            labels0.append(labels)
         else:
-            scores1 = torch.cat([scores1, scores])
-            labels1 = torch.cat([labels1, labels])
+            scores1.append(scores)
+            labels1.append(labels)
 
-    scores0 = scores0.cpu()
-    scores1 = scores1.cpu()
+        if index % log_interval == 0:
+            print(f'{utils.current_time()} [valid] [{index:04d}/{dataloader_size:04d}]')
 
-    labels0 = labels0.cpu()
-    labels1 = labels1.cpu()
+    scores0 = torch.cat(scores0).cpu()
+    scores1 = torch.cat(scores1).cpu()
+
+    labels0 = torch.cat(labels0).cpu()
+    labels1 = torch.cat(labels1).cpu()
 
     scores = torch.cat([scores0, scores1])
     labels = torch.cat([labels0, labels1])

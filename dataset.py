@@ -20,10 +20,10 @@ class AnomalyDetectionDataset(Dataset):
         input = np.load(f'{self.root}/{self.inputs[index]}')
         label = np.load(f'{self.root}/{self.labels[index]}')
 
-        input = input.astype(np.float32)
-        label = label.astype(np.float32)
+        input = torch.from_numpy(input)
+        label = torch.from_numpy(label)
 
-        return torch.from_numpy(input), torch.from_numpy(label), torch.tensor(label.shape[0])
+        return input.float(), label.float(), label.shape[0]
 
     def setup_dataset(self):
         annotations = self.load_annotations()
