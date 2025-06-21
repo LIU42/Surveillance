@@ -28,11 +28,11 @@ def normalize(inputs):
     return (inputs - mean) / std
 
 
-def convert_frame(frame):
-    converted_frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_LINEAR)
-    converted_frame = converted_frame[y1:y2, x1:x2]
+def frame_preprocess(frame):
+    preprocessed = cv2.resize(frame, (width, height), interpolation=cv2.INTER_LINEAR)
+    preprocessed = preprocessed[y1:y2, x1:x2]
 
-    return cv2.cvtColor(converted_frame, cv2.COLOR_BGR2RGB)
+    return cv2.cvtColor(preprocessed, cv2.COLOR_BGR2RGB)
 
 
 def load_next_segment(capture):
@@ -42,26 +42,26 @@ def load_next_segment(capture):
         read_success, captured_frame = capture.read()
 
         if read_success:
-            segment_frames.append(convert_frame(captured_frame))
+            segment_frames.append(frame_preprocess(captured_frame))
         else:
             return False, None
 
-    return True, convert_segment(segment_frames)
+    return True, segment_preprocess(segment_frames)
 
 
-def convert_segment(frames):
-    converted_segment = np.stack(frames, axis=0).transpose((3, 0, 1, 2))
+def segment_preprocess(frames):
+    preprocessed = np.stack(frames, axis=0).transpose((3, 0, 1, 2))
 
     if configs['precision'] == 'fp16':
-        return normalize(converted_segment).astype(np.float16)
+        preprocessed = normalize(preprocessed).astype(np.float16)
     else:
-        return normalize(converted_segment).astype(np.float32)
+        preprocessed = normalize(preprocessed).astype(np.float32)
+
+    return np.expand_dims(preprocessed, axis=0)
 
 
 def extract_segment_features(segment):
-    expanded_segment = np.expand_dims(segment, axis=0)
-
-    extraction_outputs = extraction_session.run(['outputs'], {'inputs': expanded_segment})
+    extraction_outputs = extraction_session.run(['outputs'], {'inputs': segment})
     extraction_outputs = extraction_outputs[0]
 
     return np.squeeze(extraction_outputs, axis=0)
@@ -72,21 +72,23 @@ def extract_video_features(video_path):
     capture = cv2.VideoCapture(video_path)
 
     while capture.isOpened():
-        load_success, converted_segment = load_next_segment(capture)
+        load_success, preprocessed_segment = load_next_segment(capture)
 
         if load_success:
-            features.append(extract_segment_features(converted_segment))
+            features.append(extract_segment_features(preprocessed_segment))
         else:
             capture.release()
 
     return np.stack(features, axis=0)
 
 
-def convert_features(features):
+def features_preprocess(features):
     if configs['precision'] == 'fp16':
-        return features.astype(np.float16)
+        preprocessed = features.astype(np.float16)
     else:
-        return features.astype(np.float32)
+        preprocessed = features.astype(np.float32)
+
+    return np.expand_dims(preprocessed, axis=0)
 
 
 def sigmoid(inputs):
@@ -94,9 +96,7 @@ def sigmoid(inputs):
 
 
 def detection_by_features(features):
-    expanded_features = np.expand_dims(features, axis=0)
-
-    detection_outputs = detection_session.run(['outputs'], {'inputs': expanded_features})
+    detection_outputs = detection_session.run(['outputs'], {'inputs': features})
     detection_outputs = detection_outputs[0]
 
     return sigmoid(np.squeeze(detection_outputs, axis=0))
@@ -111,10 +111,10 @@ def expand_scores(scores):
 
 
 def detection_by_video(video_path):
-    extracted_features = extract_video_features(video_path)
-    converted_features = convert_features(extracted_features)
+    features = extract_video_features(video_path)
+    features = features_preprocess(features)
 
-    return score_smoothing(detection_by_features(converted_features))
+    return score_smoothing(detection_by_features(features))
 
 
 def anomaly_prompt_enhancement(frame, prompt):
@@ -122,10 +122,10 @@ def anomaly_prompt_enhancement(frame, prompt):
 
 
 def anomaly_border_enhancement(frame, border):
-    frame_x = frame.shape[1]
-    frame_y = frame.shape[0]
+    x2 = frame.shape[1]
+    y2 = frame.shape[0]
 
-    return cv2.rectangle(frame, (0, 0), (frame_x, frame_y), (0, 0, 215), thickness=border)
+    return cv2.rectangle(frame, (0, 0), (x2, y2), (0, 0, 215), thickness=border)
 
 
 def draw_detection_result(frame, score):

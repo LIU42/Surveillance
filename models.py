@@ -50,6 +50,9 @@ class ContextAttention(nn.Module):
         position_mask = self.position_mask[:sequence_length, :sequence_length]
         position_info = self.position_info[:sequence_length, :sequence_length]
 
+        position_mask = position_mask.to(inputs.device)
+        position_info = position_info.to(inputs.device)
+
         q = self.project_q(inputs)
         k = self.project_k(inputs)
         v = self.project_v(inputs)
@@ -62,10 +65,10 @@ class ContextAttention(nn.Module):
         k = k.permute(0, 2, 3, 1)
         v = v.permute(0, 2, 1, 3)
 
-        positional_encoding = torch.exp(-(self.gamma * position_info.to(inputs.device) - self.theta).abs())
+        positional_encoding = torch.exp(-(self.gamma * position_info - self.theta).abs())
 
         attention_map1 = (q @ k) / self.scale + positional_encoding
-        attention_map2 = attention_map1.masked_fill(position_mask.to(inputs.device), -1e9)
+        attention_map2 = attention_map1.masked_fill(position_mask, -1e9)
 
         attention_map1 = attention_map1.softmax(dim=3)
         attention_map2 = attention_map2.softmax(dim=3)

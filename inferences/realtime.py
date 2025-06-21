@@ -81,7 +81,7 @@ class RealtimeInferenceSession:
 
         if current_frame is not None:
             with self.segment_lock:
-                self.segment_queue.append(engines.convert_frame(current_frame))
+                self.segment_queue.append(engines.frame_preprocess(current_frame))
 
     def prepare_process(self):
         while self.prepare_running:
@@ -101,12 +101,12 @@ class RealtimeInferenceSession:
             segment_frames = self.load_segment_frames()
 
         if segment_frames is not None:
-            self.feature_queue.append(engines.extract_segment_features(engines.convert_segment(segment_frames)))
+            self.feature_queue.append(engines.extract_segment_features(engines.segment_preprocess(segment_frames)))
 
-            extracted_features = np.stack(self.feature_queue, axis=0)
-            converted_features = engines.convert_features(extracted_features)
+            features = np.stack(self.feature_queue, axis=0)
+            features = engines.features_preprocess(features)
 
-            realtime_scores = engines.detection_by_features(converted_features)
+            realtime_scores = engines.detection_by_features(features)
 
             with self.current_lock:
                 self.current_score = realtime_scores[-1]
